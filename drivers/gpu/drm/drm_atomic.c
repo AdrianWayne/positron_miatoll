@@ -30,7 +30,6 @@
 #include <drm/drm_atomic.h>
 #include <drm/drm_mode.h>
 #include <drm/drm_print.h>
-#include <linux/devfreq_boost.h>
 #include <linux/sync_file.h>
 
 #include "drm_crtc_internal.h"
@@ -1096,9 +1095,21 @@ drm_atomic_get_connector_state(struct drm_atomic_state *state,
 		struct __drm_connnectors_state *c;
 		int alloc = max(index + 1, config->num_connector);
 
-		c = krealloc(state->connectors, alloc * sizeof(*state->connectors), GFP_KERNEL);
-		if (!c)
-			return ERR_PTR(-ENOMEM);
+		if (state->connectors_preallocated) {
+			state->connectors_preallocated = false;
+			c = kmalloc(alloc * sizeof(*state->connectors),
+				    GFP_KERNEL);
+			if (!c)
+				return ERR_PTR(-ENOMEM);
+			memcpy(c, state->connectors,
+			       sizeof(*state->connectors) * state->num_connector);
+		} else {
+			c = krealloc(state->connectors,
+				     alloc * sizeof(*state->connectors),
+				     GFP_KERNEL);
+			if (!c)
+				return ERR_PTR(-ENOMEM);
+		}
 
 		state->connectors = c;
 		memset(&state->connectors[state->num_connector], 0,
@@ -2247,9 +2258,6 @@ int drm_mode_atomic_ioctl(struct drm_device *dev,
 	if ((arg->flags & DRM_MODE_ATOMIC_TEST_ONLY) &&
 			(arg->flags & DRM_MODE_PAGE_FLIP_EVENT))
 		return -EINVAL;
-
-	if (!(arg->flags & DRM_MODE_ATOMIC_TEST_ONLY))
-		devfreq_boost_kick(DEVFREQ_CPU_LLCC_DDR_BW);
 
 	drm_modeset_acquire_init(&ctx, 0);
 

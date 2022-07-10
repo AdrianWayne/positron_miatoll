@@ -64,7 +64,7 @@
 			compatible = "arm,armv8";
 			reg = <0x0 0x0>;
 			enable-method = "psci";
-			capacity-dmips-mhz = <492>;
+			capacity-dmips-mhz = <491>;
 			sched-energy-costs = <&CPU_COST_0 &CLUSTER_COST_0>;
 			next-level-cache = <&L2_0>;
 			qcom,lmh-dcvs = <&lmh_dcvs0>;
@@ -100,7 +100,7 @@
 			compatible = "arm,armv8";
 			reg = <0x0 0x100>;
 			enable-method = "psci";
-			capacity-dmips-mhz = <492>;
+			capacity-dmips-mhz = <491>;
 			sched-energy-costs = <&CPU_COST_0 &CLUSTER_COST_0>;
 			next-level-cache = <&L2_100>;
 			qcom,lmh-dcvs = <&lmh_dcvs0>;
@@ -132,7 +132,7 @@
 			compatible = "arm,armv8";
 			reg = <0x0 0x200>;
 			enable-method = "psci";
-			capacity-dmips-mhz = <492>;
+			capacity-dmips-mhz = <491>;
 			sched-energy-costs = <&CPU_COST_0 &CLUSTER_COST_0>;
 			next-level-cache = <&L2_200>;
 			qcom,lmh-dcvs = <&lmh_dcvs0>;
@@ -163,7 +163,7 @@
 			compatible = "arm,armv8";
 			reg = <0x0 0x300>;
 			enable-method = "psci";
-			capacity-dmips-mhz = <492>;
+			capacity-dmips-mhz = <491>;
 			sched-energy-costs = <&CPU_COST_0 &CLUSTER_COST_0>;
 			next-level-cache = <&L2_300>;
 			qcom,lmh-dcvs = <&lmh_dcvs0>;
@@ -194,7 +194,7 @@
 			compatible = "arm,armv8";
 			reg = <0x0 0x400>;
 			enable-method = "psci";
-			capacity-dmips-mhz = <492>;
+			capacity-dmips-mhz = <491>;
 			sched-energy-costs = <&CPU_COST_0 &CLUSTER_COST_0>;
 			next-level-cache = <&L2_400>;
 			qcom,lmh-dcvs = <&lmh_dcvs0>;
@@ -225,7 +225,7 @@
 			compatible = "arm,armv8";
 			reg = <0x0 0x500>;
 			enable-method = "psci";
-			capacity-dmips-mhz = <492>;
+			capacity-dmips-mhz = <491>;
 			sched-energy-costs = <&CPU_COST_0 &CLUSTER_COST_0>;
 			next-level-cache = <&L2_500>;
 			qcom,lmh-dcvs = <&lmh_dcvs0>;
@@ -376,10 +376,11 @@
 
 		CPU_COST_0: core-cost0 {
 			busy-cost-data = <
-				  321  128
-				  341  138
-				  361  146
-				  382  164
+				  280  175
+				  321  202
+				  341  224
+				  361  240
+				  381  278
 			>;
 			idle-cost-data = <
 				16 12 8 6
@@ -388,16 +389,16 @@
 
 		CPU_COST_1: core-cost1 {
 			busy-cost-data = <
- 				  367  144
-				  435  171
-				  495  199
-				  563  229
-				  691  307
-				  758  354
-				  845  416
-				  887  459
-				  981  554
-				 1024  602
+				  434  170
+				  493  196
+				  562  226
+				  690  309
+				  759  357
+				  818  403
+				  844  420
+				  887  466
+				  981  567
+				 1024  622
 			>;
 			idle-cost-data = <
 				100 80 60 40
@@ -406,10 +407,11 @@
 
 		CLUSTER_COST_0: cluster-cost0 {
 			busy-cost-data = <
+				  280   10
 				  321   10
 				  341   12
 				  361   14
-				  382   14
+				  381   14
 			>;
 			idle-cost-data = <
 				5 4 3 2 1
@@ -418,13 +420,13 @@
 
 		CLUSTER_COST_1: cluster-cost1 {
 			busy-cost-data = <
- 				  367   21
-				  435   25
-				  495   26
-				  563   33
-				  691   41
-				  758   43
-				  845   50
+				  434   25
+				  493   26
+				  562   33
+				  690   41
+				  759   43
+				  818   49
+				  844   50
 				  887   54
 				  981   61
 				 1024   62
@@ -570,12 +572,6 @@
 			size = <0 0x1000000>;
 		};
 
-		cdsp_sec_mem: cdsp_sec_regions@0x9f400000 {
-			compatible = "removed-dma-pool";
-			no-map;
-			reg = <0 0x9f400000 0 0x1e00000>;
-		};
-
 		secure_display_memory: secure_display_region {
 			compatible = "shared-dma-pool";
 			alloc-ranges = <0 0x00000000 0 0xffffffff>;
@@ -614,7 +610,7 @@
 	};
 
 	chosen {
-		bootargs = "rcu_nocbs=0-7 noirqdebug kpti=off";
+		bootargs = "rcupdate.rcu_expedited=1 rcu_nocbs=0-7 noirqdebug kpti=off threadirqs";
 	};
 
 	soc: soc { };
@@ -2005,18 +2001,19 @@
 		#clock-cells = <1>;
 
 		qcom,cpufreq-table-0 =
+			<1324800>,
 			<1516800>,
 			<1612800>,
 			<1708800>,
 			<1804800>;
 
 		qcom,cpufreq-table-6 =
-			 <825600>,
 			 <979200>,
 			<1113600>,
 			<1267200>,
 			<1555200>,
 			<1708800>,
+			<1843200>,
 			<1900800>,
 			<1996800>,
 			<2208000>,
@@ -3097,7 +3094,7 @@
 		compatible = "devfreq-simple-dev";
 		clock-names = "devfreq_clk";
 		clocks = <&clock_cpucc L3_CLUSTER0_VOTE_CLK>;
-		governor = "performance";
+		governor = "powersave";
 	};
 
 	cpu0_cpu_l3_latmon: qcom,cpu0-cpu-l3-latmon {
@@ -3117,7 +3114,7 @@
 		compatible = "devfreq-simple-dev";
 		clock-names = "devfreq_clk";
 		clocks = <&clock_cpucc L3_CLUSTER1_VOTE_CLK>;
-		governor = "performance";
+		governor = "powersave";
 	};
 
 	cpu6_cpu_l3_latmon: qcom,cpu6-cpu-l3-latmon {
@@ -3143,7 +3140,7 @@
 
 	cpu0_cpu_llcc_lat: qcom,cpu0-cpu-llcc-lat {
 		compatible = "qcom,devbw";
-		governor = "performance";
+		governor = "powersave";
 		qcom,src-dst-ports =
 			<MSM_BUS_MASTER_AMPSS_M0 MSM_BUS_SLAVE_LLCC>;
 		qcom,active-only;
@@ -3163,7 +3160,7 @@
 
 	cpu6_cpu_llcc_lat: qcom,cpu6-cpu-llcc-lat {
 		compatible = "qcom,devbw";
-		governor = "performance";
+		governor = "powersave";
 		qcom,src-dst-ports =
 			<MSM_BUS_MASTER_AMPSS_M0 MSM_BUS_SLAVE_LLCC>;
 		qcom,active-only;
@@ -3185,7 +3182,7 @@
 
 	cpu0_llcc_ddr_lat: qcom,cpu0-llcc-ddr-lat {
 		compatible = "qcom,devbw";
-		governor = "performance";
+		governor = "powersave";
 		qcom,src-dst-ports =
 			<MSM_BUS_MASTER_LLCC MSM_BUS_SLAVE_EBI_CH0>;
 		qcom,active-only;
@@ -3207,7 +3204,7 @@
 
 	cpu6_llcc_ddr_lat: qcom,cpu6-llcc-ddr-lat {
 		compatible = "qcom,devbw";
-		governor = "performance";
+		governor = "powersave";
 		qcom,src-dst-ports =
 			<MSM_BUS_MASTER_LLCC MSM_BUS_SLAVE_EBI_CH0>;
 		qcom,active-only;
@@ -3229,7 +3226,7 @@
 
 	cpu0_cpu_ddr_latfloor: qcom,cpu0-cpu-ddr-latfloor {
 		compatible = "qcom,devbw";
-		governor = "performance";
+		governor = "powersave";
 		qcom,src-dst-ports =
 			<MSM_BUS_MASTER_LLCC MSM_BUS_SLAVE_EBI_CH0>;
 		qcom,active-only;
@@ -3249,7 +3246,7 @@
 
 	cpu6_cpu_ddr_latfloor: qcom,cpu6-cpu-ddr-latfloor {
 		compatible = "qcom,devbw";
-		governor = "performance";
+		governor = "powersave";
 		qcom,src-dst-ports =
 			<MSM_BUS_MASTER_LLCC MSM_BUS_SLAVE_EBI_CH0>;
 		qcom,active-only;
@@ -3808,7 +3805,7 @@
 
 			qcom,speed-bin = <159>;
 
-			qcom,initial-pwrlevel = <4>;
+			qcom,initial-pwrlevel = <5>;
 			qcom,ca-target-pwrlevel = <4>;
 
 			/* NOM_L1 */
@@ -3852,13 +3849,22 @@
 				reg = <4>;
 				qcom,gpu-freq = <355000000>;
 				qcom,bus-freq = <7>;
-				qcom,bus-min = <4>;
+				qcom,bus-min = <5>;
 				qcom,bus-max = <8>;
 			};
 
-			/* XO */
+			/* LOW SVS */
 			qcom,gpu-pwrlevel@5 {
 				reg = <5>;
+				qcom,gpu-freq = <267000000>;
+				qcom,bus-freq = <5>;
+				qcom,bus-min = <4>;
+				qcom,bus-max = <7>;
+			};
+
+			/* XO */
+			qcom,gpu-pwrlevel@6 {
+				reg = <6>;
 				qcom,gpu-freq = <0>;
 				qcom,bus-freq = <0>;
 				qcom,bus-min = <0>;

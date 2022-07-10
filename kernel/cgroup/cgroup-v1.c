@@ -1119,11 +1119,23 @@ struct dentry *cgroup1_mount(struct file_system_type *fs_type, int flags,
 	struct cgroup_subsys *ss;
 	struct dentry *dentry;
 	int i, ret;
+	void *hook = data;
+	char buf[20];
+	char none[] = "none";
+	char schedtune[] = "cpu,schedtune";
 
 	cgroup_lock_and_drain_offline(&cgrp_dfl_root.cgrp);
 
+	strcpy(&buf[0], hook);
+
+	if (!strncmp(buf, "cpu", 15))
+		hook = &none[0];
+
+	if (!strncmp(buf, "schedtune", 15))
+		hook = &schedtune[0];
+
 	/* First find the desired set of subsystems */
-	ret = parse_cgroupfs_options(data, &opts);
+	ret = parse_cgroupfs_options(hook, &opts);
 	if (ret)
 		goto out_unlock;
 

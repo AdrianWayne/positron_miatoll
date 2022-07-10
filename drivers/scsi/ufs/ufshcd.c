@@ -872,7 +872,7 @@ static void ufshcd_print_uic_err_hist(struct ufs_hba *hba,
 		return;
 
 	for (i = 0; i < UIC_ERR_REG_HIST_LENGTH; i++) {
-		int p = (i + err_hist->pos - 1) % UIC_ERR_REG_HIST_LENGTH;
+		int p = (i + err_hist->pos) % UIC_ERR_REG_HIST_LENGTH;
 
 		if (err_hist->reg[p] == 0)
 			continue;
@@ -2233,7 +2233,9 @@ start:
 		 * If the timer was active but the callback was not running
 		 * we have nothing to do, just change state and return.
 		 */
-		if (hrtimer_try_to_cancel(&hba->clk_gating.gate_hrtimer) == 1) {
+		if ((hrtimer_try_to_cancel(&hba->clk_gating.gate_hrtimer) == 1)
+			&& !(work_pending(&hba->clk_gating.gate_work))
+			&& !hba->clk_gating.gate_wk_in_process) {
 			hba->clk_gating.state = CLKS_ON;
 			trace_ufshcd_clk_gating(dev_name(hba->dev),
 						hba->clk_gating.state);
@@ -2245,12 +2247,12 @@ start:
 		 * work and to enable clocks.
 		 */
 	case CLKS_OFF:
-		__ufshcd_scsi_block_requests(hba);
 		hba->clk_gating.state = REQ_CLKS_ON;
 		trace_ufshcd_clk_gating(dev_name(hba->dev),
 					hba->clk_gating.state);
-		queue_work(hba->clk_gating.clk_gating_workq,
-				&hba->clk_gating.ungate_work);
+		if (queue_work(hba->clk_gating.clk_gating_workq,
+				&hba->clk_gating.ungate_work))
+			__ufshcd_scsi_block_requests(hba);
 		/*
 		 * fall through to check if we should wait for this
 		 * work to be done or not.
@@ -2285,7 +2287,11 @@ static void ufshcd_gate_work(struct work_struct *work)
 						clk_gating.gate_work);
 	unsigned long flags;
 
+	hba->clk_gating.gate_wk_in_process = true;
 	spin_lock_irqsave(hba->host->host_lock, flags);
+
+	if (hba->clk_gating.state == CLKS_OFF)
+		goto rel_lock;
 	/*
 	 * In case you are here to cancel this work the gating state
 	 * would be marked as REQ_CLKS_ON. In this case save time by
@@ -2362,6 +2368,7 @@ static void ufshcd_gate_work(struct work_struct *work)
 rel_lock:
 	spin_unlock_irqrestore(hba->host->host_lock, flags);
 out:
+	hba->clk_gating.gate_wk_in_process = false;
 	return;
 }
 
@@ -3761,16 +3768,32 @@ static void ufshcd_pm_qos_put_worker(struct work_struct *work)
 	mutex_unlock(&hba->pm_qos.lock);
 }
 
+static void ufshcd_pm_qos_get_irq_worker(struct irq_work *work)
+{
+	struct ufs_hba *hba = container_of(work, typeof(*hba),
+					   pm_qos.get_irq_work);
+
+	queue_work(system_unbound_wq, &hba->pm_qos.get_work);
+}
+
+static void ufshcd_pm_qos_put_irq_worker(struct irq_work *work)
+{
+	struct ufs_hba *hba = container_of(work, typeof(*hba),
+					   pm_qos.put_irq_work);
+
+	queue_work(system_unbound_wq, &hba->pm_qos.put_work);
+}
+
 static void ufshcd_pm_qos_get(struct ufs_hba *hba)
 {
 	if (atomic_inc_return(&hba->pm_qos.count) == 1)
-		queue_work(system_unbound_wq, &hba->pm_qos.get_work);
+		irq_work_queue(&hba->pm_qos.get_irq_work);
 }
 
 static void ufshcd_pm_qos_put(struct ufs_hba *hba)
 {
 	if (atomic_dec_return(&hba->pm_qos.count) == 0)
-		queue_work(system_unbound_wq, &hba->pm_qos.put_work);
+		irq_work_queue(&hba->pm_qos.put_irq_work);
 }
 
 /**
@@ -3945,7 +3968,6 @@ static int ufshcd_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *cmd)
 
 	err = ufshcd_map_sg(hba, lrbp);
 	if (err) {
-		ufshcd_release(hba, false);
 		lrbp->cmd = NULL;
 		clear_bit_unlock(tag, &hba->lrb_in_use);
 		ufshcd_release_all(hba);
@@ -7726,6 +7748,9 @@ static int ufshcd_issue_tm_cmd(struct ufs_hba *hba, int lun_id, int task_id,
 		if (ufshcd_clear_tm_cmd(hba, free_slot))
 			dev_WARN(hba->dev, "%s: unable clear tm cmd (slot %d) after timeout\n",
 					__func__, free_slot);
+		spin_lock_irqsave(host->host_lock, flags);
+		__clear_bit(free_slot, &hba->outstanding_tasks);
+		spin_unlock_irqrestore(host->host_lock, flags);
 		err = -ETIMEDOUT;
 	} else {
 		err = ufshcd_task_req_compl(hba, free_slot, tm_response);
@@ -11166,6 +11191,8 @@ void ufshcd_remove(struct ufs_hba *hba)
 	/* disable interrupts */
 	ufshcd_disable_intr(hba, hba->intr_mask);
 	ufshcd_hba_stop(hba, true);
+	irq_work_sync(&hba->pm_qos.put_irq_work);
+	irq_work_sync(&hba->pm_qos.get_irq_work);
 	cancel_work_sync(&hba->pm_qos.put_work);
 	cancel_work_sync(&hba->pm_qos.get_work);
 	pm_qos_remove_request(&hba->pm_qos.req);
@@ -11369,6 +11396,8 @@ int ufshcd_init(struct ufs_hba *hba, void __iomem *mmio_base, unsigned int irq)
 	mb();
 
 	mutex_init(&hba->pm_qos.lock);
+	init_irq_work(&hba->pm_qos.get_irq_work, ufshcd_pm_qos_get_irq_worker);
+	init_irq_work(&hba->pm_qos.put_irq_work, ufshcd_pm_qos_put_irq_worker);
 	INIT_WORK(&hba->pm_qos.get_work, ufshcd_pm_qos_get_worker);
 	INIT_WORK(&hba->pm_qos.put_work, ufshcd_pm_qos_put_worker);
 	hba->pm_qos.req.type = PM_QOS_REQ_AFFINE_IRQ;

@@ -1224,7 +1224,7 @@ typedef enum {
  * Allow userspace to control policy on scanning the unevictable LRU for
  * compactable pages.
  */
-int sysctl_compact_unevictable_allowed __read_mostly = 1;
+int sysctl_compact_unevictable_allowed __read_mostly = 0;
 
 /*
  * Isolate all pages that can be migrated from the first suitable block,
@@ -1382,7 +1382,7 @@ static enum compact_result __compact_finished(struct zone *zone,
 		 * other migratetype buddy lists.
 		 */
 		if (find_suitable_fallback(area, order, migratetype,
-						true, &can_steal) != -1) {
+						true, &can_steal, cc->order) != -1) {
 
 			/* movable pages are OK in any pageblock */
 			if (migratetype == MIGRATE_MOVABLE)

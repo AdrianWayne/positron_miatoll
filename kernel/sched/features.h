@@ -39,7 +39,6 @@
 
 #define SCHED_FEAT_HRTICK 0
 #define SCHED_FEAT_DOUBLE_TICK 0
-#define SCHED_FEAT_LB_BIAS 1
 
 /*
  * Decrement CPU capacity based on time not spent running tasks
@@ -92,7 +91,6 @@
  * UtilEstimation. Use estimated CPU utilization.
  */
 #define SCHED_FEAT_UTIL_EST 1
-#define SCHED_FEAT_UTIL_EST_FASTUP 1
 
 /*
  * Energy aware scheduling. Use platform energy model to guide scheduling

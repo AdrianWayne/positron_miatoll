@@ -3189,8 +3189,10 @@ static void adreno_read(struct kgsl_device *device, void __iomem *base,
 
 	reg = (base + (offsetwords << 2));
 
+#if 0
 	if (!in_interrupt())
 		kgsl_pre_hwaccess(device);
+#endif
 
 	*value = __raw_readl(reg);
 	/*
@@ -3237,8 +3239,10 @@ static void adreno_regwrite(struct kgsl_device *device,
 			offsetwords, device->reg_len >> 2))
 		return;
 
+#if 0
 	if (!in_interrupt())
 		kgsl_pre_hwaccess(device);
+#endif
 
 	trace_kgsl_regwrite(device, offsetwords, value);
 
@@ -3334,7 +3338,11 @@ int adreno_gmu_fenced_write(struct adreno_device *adreno_dev,
 		if (!(status & fence_mask))
 			return 0;
 		/* Wait a small amount of time before trying again */
-		udelay(GMU_CORE_WAKEUP_DELAY_US);
+		if (in_atomic())
+			udelay(GMU_CORE_WAKEUP_DELAY_US);
+		else
+			usleep_range(GMU_CORE_WAKEUP_DELAY_US / 2,
+				     2 * GMU_CORE_WAKEUP_DELAY_US);
 
 		/* Try to write the fenced register again */
 		adreno_writereg(adreno_dev, offset, val);
@@ -4115,7 +4123,7 @@ static int __kgsl_3d_init(void *arg)
 
 static int __init kgsl_3d_init(void)
 {
-#ifdef CONFIG_PLATFORM_AUTO
+#if 1
 	struct task_struct *kgsl_3d_init_task =
 		kthread_run(__kgsl_3d_init, NULL, "kgsl_3d_init");
 	if (IS_ERR(kgsl_3d_init_task))

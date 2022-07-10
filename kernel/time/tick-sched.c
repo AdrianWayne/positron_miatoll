@@ -29,6 +29,7 @@
 #include <linux/timer.h>
 #include <linux/context_tracking.h>
 #include <linux/rq_stats.h>
+#include <linux/mm.h>
 
 #include <asm/irq_regs.h>
 
@@ -822,7 +823,7 @@ static void tick_nohz_stop_tick(struct tick_sched *ts, int cpu)
 	 */
 	if (!ts->tick_stopped) {
 		calc_load_nohz_start();
-		cpu_load_update_nohz_start();
+		quiet_vmstat();
 
 		ts->last_tick = hrtimer_get_expires(&ts->sched_timer);
 		ts->tick_stopped = 1;
@@ -868,7 +869,6 @@ static void tick_nohz_restart_sched_tick(struct tick_sched *ts, ktime_t now)
 {
 	/* Update jiffies first */
 	tick_do_update_jiffies64(now);
-	cpu_load_update_nohz_stop();
 
 	/*
 	 * Clear the timer idle flag, so we avoid IPIs on remote queueing and
@@ -1246,7 +1246,7 @@ static inline void tick_nohz_activate(struct tick_sched *ts, int mode)
 	ts->nohz_mode = mode;
 	/* One update is enough */
 	if (!test_and_set_bit(0, &tick_nohz_active))
-		timers_update_migration(true);
+		timers_update_nohz();
 }
 
 /**
@@ -1319,7 +1319,7 @@ static void wakeup_user(void)
 	jiffy_gap = jiffies - rq_info.def_timer_last_jiffy;
 	if (jiffy_gap >= rq_info.def_timer_jiffies) {
 		rq_info.def_timer_last_jiffy = jiffies;
-		queue_work(rq_wq, &rq_info.def_timer_work);
+		irq_work_queue(&rq_info.def_timer_irq_work);
 	}
 }
 

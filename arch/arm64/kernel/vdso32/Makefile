@@ -57,6 +57,8 @@ VDSO_CAFLAGS += -DDISABLE_BRANCH_PROFILING
 
 # Always compile for ARMv8 as compilers supported by AOSP support this.
 VDSO_CAFLAGS += -D__LINUX_ARM_ARCH__=8
+VDSO_CAFLAGS += -mcpu=cortex-a55
+VDSO_CAFLAGS += -Wa,-mcpu=cortex-a55
 
 VDSO_CFLAGS := $(VDSO_CAFLAGS)
 # KBUILD_CFLAGS from top-level Makefile
@@ -86,9 +88,6 @@ VDSO_CFLAGS += -Wno-int-to-pointer-cast
 
 VDSO_AFLAGS := $(VDSO_CAFLAGS)
 VDSO_AFLAGS += -D__ASSEMBLY__
-
-VDSO_CFLAGS  += -mcpu=cortex-a55
-VDSO_AFLAGS  += -Wa,-mcpu=cortex-a55
 
 # From arm vDSO Makefile
 VDSO_LDFLAGS += -Bsymbolic --no-undefined -soname=linux-vdso.so.1

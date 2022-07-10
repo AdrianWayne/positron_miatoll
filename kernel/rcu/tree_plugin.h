@@ -31,10 +31,9 @@
 #include <linux/smpboot.h>
 #include <uapi/linux/sched/types.h>
 #include "../time/tick-internal.h"
+#include "../locking/rtmutex_common.h"
 
 #ifdef CONFIG_RCU_BOOST
-
-#include "../locking/rtmutex_common.h"
 
 /*
  * Control variables for per-CPU and per-rcu_node kthreads.  These
@@ -463,7 +462,7 @@ void rcu_read_unlock_special(struct task_struct *t)
 	}
 
 	/* Hardware IRQ handlers cannot block, complain if they get here. */
-	if (in_irq() || in_serving_softirq()) {
+	if (preempt_count() & (HARDIRQ_MASK | SOFTIRQ_OFFSET)) {
 		lockdep_rcu_suspicious(__FILE__, __LINE__,
 				       "rcu_read_unlock() from irq or softirq with blocking in critical section!!!\n");
 		pr_alert("->rcu_read_unlock_special: %#x (b: %d, enq: %d nq: %d)\n",
@@ -530,7 +529,7 @@ void rcu_read_unlock_special(struct task_struct *t)
 
 		/* Unboost if we were boosted. */
 		if (IS_ENABLED(CONFIG_RCU_BOOST) && drop_boost_mutex)
-			rt_mutex_unlock(&rnp->boost_mtx);
+			rt_mutex_futex_unlock(&rnp->boost_mtx);
 
 		/*
 		 * If this was the last task on the expedited lists,

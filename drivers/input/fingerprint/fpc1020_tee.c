@@ -40,7 +40,7 @@
 #include <linux/proc_fs.h>
 #include <linux/fb.h>
 
-#define FPC_TTW_HOLD_TIME 2000
+#define FPC_TTW_HOLD_TIME 1000
 #define FP_UNLOCK_REJECTION_TIMEOUT (FPC_TTW_HOLD_TIME - 500)
 #define RESET_LOW_SLEEP_MIN_US 5000
 #define RESET_LOW_SLEEP_MAX_US (RESET_LOW_SLEEP_MIN_US + 100)
@@ -484,11 +484,7 @@ static irqreturn_t fpc1020_irq_handler(int irq, void *handle)
 
 	dev_dbg(fpc1020->dev, "%s\n", __func__);
 
-	if (atomic_read(&fpc1020->wakeup_enabled)) {
-		//wake_lock_timeout(&fpc1020->ttw_wl,
-		//			msecs_to_jiffies(FPC_TTW_HOLD_TIME));
-		__pm_wakeup_event(&fpc1020->ttw_ws, FPC_TTW_HOLD_TIME);//for kernel 4.9
-	}
+	__pm_wakeup_event(&fpc1020->ttw_ws, FPC_TTW_HOLD_TIME);
 
 	sysfs_notify(&fpc1020->dev->kobj, NULL, dev_attr_irq.attr.name);
 	return IRQ_HANDLED;

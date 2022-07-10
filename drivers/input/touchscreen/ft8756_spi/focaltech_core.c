@@ -757,7 +757,7 @@ static int fts_irq_registration(struct fts_ts_data *ts_data)
 	struct fts_ts_platform_data *pdata = ts_data->pdata;
 
 	ts_data->irq = gpio_to_irq(pdata->irq_gpio);
-	pdata->irq_gpio_flags = IRQF_TRIGGER_FALLING | IRQF_ONESHOT | IRQF_PERF_AFFINE;
+	pdata->irq_gpio_flags = IRQF_TRIGGER_FALLING | IRQF_ONESHOT | IRQF_PRIME_AFFINE;
 	FTS_INFO("irq:%d, flag:%x", ts_data->irq, pdata->irq_gpio_flags);
 	ret = request_threaded_irq(ts_data->irq, NULL, fts_irq_handler, pdata->irq_gpio_flags, FTS_DRIVER_NAME, ts_data);
 
@@ -1905,6 +1905,7 @@ static struct spi_driver fts_ts_driver = {
 		.pm = &fts_dev_pm_ops,
 #endif
 		.of_match_table = of_match_ptr(fts_dt_match),
+ 		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
 	},
 	.id_table = fts_ts_id,
 };

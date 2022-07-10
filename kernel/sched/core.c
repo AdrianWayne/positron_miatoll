@@ -54,7 +54,7 @@ DEFINE_PER_CPU_SHARED_ALIGNED(struct rq, runqueues);
  * Number of tasks to iterate in a single balance run.
  * Limited because this is done with IRQs disabled.
  */
-const_debug unsigned int sysctl_sched_nr_migrate = 32;
+const_debug unsigned int sysctl_sched_nr_migrate = 16;
 
 /*
  * period over which we average the RT time consumption, measured
@@ -955,14 +955,9 @@ static struct rq *move_queued_task(struct rq *rq, struct rq_flags *rf,
 
 	p->on_rq = TASK_ON_RQ_MIGRATING;
 	dequeue_task(rq, p, DEQUEUE_NOCLOCK);
-#ifdef CONFIG_SCHED_WALT
 	double_lock_balance(rq, cpu_rq(new_cpu));
 	set_task_cpu(p, new_cpu);
 	double_rq_unlock(cpu_rq(new_cpu), rq);
-#else
-	set_task_cpu(p, new_cpu);
-	rq_unlock(rq, rf);
-#endif
 
 	rq = cpu_rq(new_cpu);
 
@@ -1134,8 +1129,7 @@ static int __set_cpus_allowed_ptr(struct task_struct *p,
 	cpumask_andnot(&allowed_mask, new_mask, cpu_isolated_mask);
 	cpumask_and(&allowed_mask, &allowed_mask, cpu_valid_mask);
 
-	dest_cpu = cpumask_any(&allowed_mask);
-	if (dest_cpu >= nr_cpu_ids) {
+	if (!cpumask_intersects(new_mask, cpu_valid_mask)) {
 		cpumask_and(&allowed_mask, cpu_valid_mask, new_mask);
 		dest_cpu = cpumask_any(&allowed_mask);
 		if (!cpumask_intersects(new_mask, cpu_valid_mask)) {
@@ -1160,6 +1154,7 @@ static int __set_cpus_allowed_ptr(struct task_struct *p,
 	if (cpumask_test_cpu(task_cpu(p), &allowed_mask))
 		goto out;
 
+	dest_cpu = cpumask_any_and(cpu_valid_mask, new_mask);
 	if (task_running(rq, p) || p->state == TASK_WAKING) {
 		struct migration_arg arg = { p, dest_cpu };
 		/* Need help from migration thread: drop lock and wait. */
@@ -2153,7 +2148,7 @@ static inline void walt_try_to_wake_up(struct task_struct *p)
 
 	rcu_read_lock();
 	grp = task_related_thread_group(p);
-	if (update_preferred_cluster(grp, p, old_load))
+	if (update_preferred_cluster(grp, p, old_load, false))
 		set_preferred_cluster(grp);
 	rcu_read_unlock();
 }
@@ -2248,33 +2243,38 @@ try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags,
 	 * current.
 	 */
 	smp_rmb();
-	if (READ_ONCE(p->on_rq) && ttwu_remote(p, wake_flags))
-		goto unlock;
+	if (READ_ONCE(p->on_rq)) {
+		if (ttwu_remote(p, wake_flags))
+			goto unlock;
+	} else {
+#ifdef CONFIG_SMP
+		/*
+		 * Ensure we load p->on_cpu _after_ p->on_rq, otherwise it would
+		 * be possible to, falsely, observe p->on_cpu == 0.
+		 *
+		 * One must be running (->on_cpu == 1) in order to remove
+		 * oneself from the runqueue.
+		 *
+		 *  [S] ->on_cpu = 1;	[L] ->on_rq
+		 *      UNLOCK rq->lock
+		 *			RMB
+		 *      LOCK   rq->lock
+		 *  [S] ->on_rq = 0;    [L] ->on_cpu
+		 *
+		 * Pairs with the full barrier implied in the UNLOCK+LOCK on
+		 * rq->lock from the consecutive calls to schedule(); the first
+		 * switching to our task, the second putting it to sleep.
+		 *
+		 * Form a control-dep-acquire with p->on_rq == 0 above, to
+		 * ensure schedule()'s deactivate_task() has 'happened' and p
+		 * will no longer care about it's own p->state. See the comment
+		 * in __schedule().
+		 */
+		smp_acquire__after_ctrl_dep();
+#endif
+	}
 
 #ifdef CONFIG_SMP
-	/*
-	 * Ensure we load p->on_cpu _after_ p->on_rq, otherwise it would be
-	 * possible to, falsely, observe p->on_cpu == 0.
-	 *
-	 * One must be running (->on_cpu == 1) in order to remove oneself
-	 * from the runqueue.
-	 *
-	 *  [S] ->on_cpu = 1;	[L] ->on_rq
-	 *      UNLOCK rq->lock
-	 *			RMB
-	 *      LOCK   rq->lock
-	 *  [S] ->on_rq = 0;    [L] ->on_cpu
-	 *
-	 * Pairs with the full barrier implied in the UNLOCK+LOCK on rq->lock
-	 * from the consecutive calls to schedule(); the first switching to our
-	 * task, the second putting it to sleep.
-	 *
-	 * Form a control-dep-acquire with p->on_rq == 0 above, to ensure
-	 * schedule()'s deactivate_task() has 'happened' and p will no longer
-	 * care about it's own p->state. See the comment in __schedule().
-	 */
-	smp_acquire__after_ctrl_dep();
-
 	/*
 	 * We're doing the wakeup (@success == 1), they did a dequeue (p->on_rq
 	 * == 0), which means we need to do an enqueue, change p->state to
@@ -2344,8 +2344,7 @@ out:
 	if (success)
 		ttwu_stat(p, task_cpu(p), wake_flags);
 	preempt_enable();
-
-#ifdef CONFIG_SCHED_WALT
+#if 0
 	if (success && sched_predl) {
 		raw_spin_lock_irqsave(&cpu_rq(cpu)->lock, flags);
 		if (do_pl_notif(cpu_rq(cpu)))
@@ -3369,7 +3368,6 @@ void scheduler_tick(void)
 	update_task_ravg(rq->curr, rq, TASK_UPDATE, wallclock, 0);
 	update_rq_clock(rq);
 	curr->sched_class->task_tick(rq, curr, 0);
-	cpu_load_update_active(rq);
 	calc_global_load_tick(rq);
 	psi_task_tick(rq);
 
@@ -3390,7 +3388,7 @@ void scheduler_tick(void)
 
 	rcu_read_lock();
 	grp = task_related_thread_group(curr);
-	if (update_preferred_cluster(grp, curr, old_load))
+	if (update_preferred_cluster(grp, curr, old_load, true))
 		set_preferred_cluster(grp);
 	rcu_read_unlock();
 
@@ -6238,9 +6236,10 @@ int sched_unisolate_cpu_unlocked(int cpu)
 
 	if (cpu_online(cpu)) {
 		stop_cpus(cpumask_of(cpu), do_unisolation_work_cpu_stop, 0);
-
+#ifndef CONFIG_HZ_PERIODIC
 		/* Kick CPU to immediately do load balancing */
 		if (!test_and_set_bit(NOHZ_BALANCE_KICK, nohz_flags(cpu)))
+#endif
 			smp_send_reschedule(cpu);
 	}
 
@@ -6383,7 +6382,6 @@ int sched_cpu_activate(unsigned int cpu)
 	rq_unlock_irqrestore(rq, &rf);
 
 	update_max_interval();
-	walt_update_min_max_capacity();
 
 	return 0;
 }
@@ -6423,7 +6421,6 @@ int sched_cpu_deactivate(unsigned int cpu)
 		return ret;
 	}
 	sched_domains_numa_masks_clear(cpu);
-	walt_update_min_max_capacity();
 	return 0;
 }
 
@@ -7032,191 +7029,6 @@ void sched_move_task(struct task_struct *tsk)
 	task_rq_unlock(rq, tsk, &rf);
 }
 
-#ifdef CONFIG_PROC_SYSCTL
-static int find_capacity_margin_levels(void)
-{
-	int cpu, max_clusters;
-
-	for (cpu = max_clusters = 0; cpu < num_possible_cpus();) {
-		cpu += cpumask_weight(topology_core_cpumask(cpu));
-		max_clusters++;
-	}
-
-	/*
-	 * Capacity margin levels is number of clusters available in
-	 * the system subtracted by 1.
-	 */
-	return max_clusters - 1;
-}
-
-static void sched_update_up_migrate_values(int cap_margin_levels,
-			const struct cpumask *cluster_cpus[], bool boosted)
-{
-	int i, cpu;
-	unsigned int *sched_capacity_margin_up_array = boosted ?
-			sched_capacity_margin_up_boosted :
-			sched_capacity_margin_up,
-		     *sysctl_sched_capacity_margin_up_array = boosted ?
-			sysctl_sched_capacity_margin_up_boosted :
-			sysctl_sched_capacity_margin_up;
-
-	if (cap_margin_levels > 1) {
-		/*
-		 * No need to worry about CPUs in last cluster
-		 * if there are more than 2 clusters in the system
-		 */
-		for (i = 0; i < cap_margin_levels; i++)
-			if (cluster_cpus[i])
-				for_each_cpu(cpu, cluster_cpus[i])
-				    sched_capacity_margin_up_array[cpu] =
-				    sysctl_sched_capacity_margin_up_array[i];
-	} else {
-		for_each_possible_cpu(cpu)
-			sched_capacity_margin_up_array[cpu] =
-				sysctl_sched_capacity_margin_up_array[0];
-	}
-}
-
-static void sched_update_down_migrate_values(int cap_margin_levels,
-			const struct cpumask *cluster_cpus[], bool boosted)
-{
-	int i, cpu;
-	unsigned int *sched_capacity_margin_down_array = boosted ?
-			sched_capacity_margin_down_boosted :
-			sched_capacity_margin_down,
-		      *sysctl_sched_capacity_margin_down_array = boosted ?
-			sysctl_sched_capacity_margin_down_boosted :
-			sysctl_sched_capacity_margin_down;
-
-	if (cap_margin_levels > 1) {
-		/*
-		 * Skip first cluster as down migrate value isn't needed
-		 */
-		for (i = 0; i < cap_margin_levels; i++)
-			if (cluster_cpus[i+1])
-				for_each_cpu(cpu, cluster_cpus[i+1])
-				    sched_capacity_margin_down_array[cpu] =
-				    sysctl_sched_capacity_margin_down_array[i];
-	} else {
-		for_each_possible_cpu(cpu)
-			sched_capacity_margin_down_array[cpu] =
-				sysctl_sched_capacity_margin_down_array[0];
-	}
-}
-
-static void sched_update_updown_migrate_values(unsigned int *data,
-					    int cap_margin_levels, bool boosted)
-{
-	int i, cpu;
-	static const struct cpumask *cluster_cpus[MAX_CLUSTERS];
-	unsigned int *sysctl_sched_capacity_margin_up_array = boosted ?
-			sysctl_sched_capacity_margin_up_boosted :
-			sysctl_sched_capacity_margin_up;
-
-	for (i = cpu = 0; (!cluster_cpus[i]) &&
-				cpu < num_possible_cpus(); i++) {
-		cluster_cpus[i] = topology_core_cpumask(cpu);
-		cpu += cpumask_weight(topology_core_cpumask(cpu));
-	}
-
-	if (data == &sysctl_sched_capacity_margin_up_array[0])
-		sched_update_up_migrate_values(cap_margin_levels,
-					       cluster_cpus, boosted);
-	else
-		sched_update_down_migrate_values(cap_margin_levels,
-						 cluster_cpus, boosted);
-}
-
-static int __sched_updown_migrate_handler(struct ctl_table *table, int write,
-				 void __user *buffer, size_t *lenp,
-				 loff_t *ppos, bool boosted)
-{
-	int ret, i;
-	unsigned int *data = (unsigned int *)table->data;
-	unsigned int *old_val;
-	static DEFINE_MUTEX(mutex);
-	static int cap_margin_levels = -1;
-	unsigned int *sysctl_sched_capacity_margin_up_array = boosted ?
-			sysctl_sched_capacity_margin_up_boosted :
-			sysctl_sched_capacity_margin_up,
-		     *sysctl_sched_capacity_margin_down_array = boosted ?
-			sysctl_sched_capacity_margin_down_boosted :
-			sysctl_sched_capacity_margin_down;
-
-	mutex_lock(&mutex);
-
-	if (cap_margin_levels == -1 ||
-		table->maxlen != (sizeof(unsigned int) * cap_margin_levels)) {
-		cap_margin_levels = find_capacity_margin_levels();
-		table->maxlen = sizeof(unsigned int) * cap_margin_levels;
-	}
-
-	if (cap_margin_levels <= 0) {
-		ret = -EINVAL;
-		goto unlock_mutex;
-	}
-
-	if (!write) {
-		ret = proc_douintvec_capacity(table, write, buffer, lenp, ppos);
-		goto unlock_mutex;
-	}
-
-	/*
-	 * Cache the old values so that they can be restored
-	 * if either the write fails (for example out of range values)
-	 * or the downmigrate and upmigrate are not in sync.
-	 */
-	old_val = kzalloc(table->maxlen, GFP_KERNEL);
-	if (!old_val) {
-		ret = -ENOMEM;
-		goto unlock_mutex;
-	}
-
-	memcpy(old_val, data, table->maxlen);
-
-	ret = proc_douintvec_capacity(table, write, buffer, lenp, ppos);
-
-	if (ret) {
-		memcpy(data, old_val, table->maxlen);
-		goto free_old_val;
-	}
-
-	for (i = 0; i < cap_margin_levels; i++) {
-		if (sysctl_sched_capacity_margin_up_array[i] >
-				sysctl_sched_capacity_margin_down_array[i]) {
-			memcpy(data, old_val, table->maxlen);
-			ret = -EINVAL;
-			goto free_old_val;
-		}
-	}
-
-	sched_update_updown_migrate_values(data, cap_margin_levels, boosted);
-
-free_old_val:
-	kfree(old_val);
-unlock_mutex:
-	mutex_unlock(&mutex);
-
-	return ret;
-}
-
-int sched_updown_migrate_handler(struct ctl_table *table, int write,
-				 void __user *buffer, size_t *lenp,
-				 loff_t *ppos)
-{
-	return __sched_updown_migrate_handler(table, write, buffer,
-					      lenp, ppos, false);
-}
-
-int sched_updown_migrate_handler_boosted(struct ctl_table *table, int write,
-				 void __user *buffer, size_t *lenp,
-				 loff_t *ppos)
-{
-	return __sched_updown_migrate_handler(table, write, buffer,
-					      lenp, ppos, true);
-}
-#endif
-
 static inline struct task_group *css_tg(struct cgroup_subsys_state *css)
 {
 	return css ? container_of(css, struct task_group, css) : NULL;
@@ -7779,7 +7591,6 @@ void sched_exit(struct task_struct *p)
 	enqueue_task(rq, p, 0);
 	clear_ed_task(p, rq);
 	task_rq_unlock(rq, p, &rf);
-	free_task_load_ptrs(p);
 }
 #endif /* CONFIG_SCHED_WALT */
 

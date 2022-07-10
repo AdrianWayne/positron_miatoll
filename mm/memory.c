@@ -3496,7 +3496,7 @@ static int pte_alloc_one_map(struct vm_fault *vmf)
 {
 	struct vm_area_struct *vma = vmf->vma;
 
-	if (!pmd_none(*vmf->pmd))
+	if (!pmd_none(*vmf->pmd) || (vmf->flags & FAULT_FLAG_SPECULATIVE))
 		goto map_pte;
 	if (vmf->prealloc_pte) {
 		vmf->ptl = pmd_lock(vma->vm_mm, vmf->pmd);
@@ -4198,6 +4198,7 @@ static int wp_huge_pud(struct vm_fault *vmf, pud_t orig_pud)
 static int handle_pte_fault(struct vm_fault *vmf)
 {
 	pte_t entry;
+	int ret = 0;
 
 	if (unlikely(pmd_none(*vmf->pmd))) {
 		/*
@@ -4250,8 +4251,6 @@ static int handle_pte_fault(struct vm_fault *vmf)
 	if (!vmf->pte) {
 		if (vma_is_anonymous(vmf->vma))
 			return do_anonymous_page(vmf);
-		else if (vmf->flags & FAULT_FLAG_SPECULATIVE)
-			return VM_FAULT_RETRY;
 		else
 			return do_fault(vmf);
 	}
@@ -4285,10 +4284,12 @@ static int handle_pte_fault(struct vm_fault *vmf)
 		 */
 		if (vmf->flags & FAULT_FLAG_WRITE)
 			flush_tlb_fix_spurious_fault(vmf->vma, vmf->address);
+		if (vmf->flags & FAULT_FLAG_SPECULATIVE)
+			ret = VM_FAULT_RETRY;
 	}
 unlock:
 	pte_unmap_unlock(vmf->pte, vmf->ptl);
-	return 0;
+	return ret;
 }
 
 /*
@@ -4433,21 +4434,11 @@ int __handle_speculative_fault(struct mm_struct *mm, unsigned long address,
 	}
 
 	/*
-	 * Can't call vm_ops service has we don't know what they would do
-	 * with the VMA.
-	 * This include huge page from hugetlbfs.
-	 */
-	if (vmf.vma->vm_ops) {
-		trace_spf_vma_notsup(_RET_IP_, vmf.vma, address);
-		return VM_FAULT_RETRY;
-	}
-
-	/*
 	 * __anon_vma_prepare() requires the mmap_sem to be held
 	 * because vm_next and vm_prev must be safe. This can't be guaranteed
 	 * in the speculative path.
 	 */
-	if (unlikely(!vmf.vma->anon_vma)) {
+	if (unlikely(vma_is_anonymous(vmf.vma) && !vmf.vma->anon_vma)) {
 		trace_spf_vma_notsup(_RET_IP_, vmf.vma, address);
 		return VM_FAULT_RETRY;
 	}
@@ -4517,11 +4508,15 @@ int __handle_speculative_fault(struct mm_struct *mm, unsigned long address,
 		goto out_walk;
 
 	p4d = p4d_offset(pgd, address);
+	if (pgd_val(READ_ONCE(*pgd)) != pgd_val(pgdval))
+		goto out_walk;
 	p4dval = READ_ONCE(*p4d);
 	if (p4d_none(p4dval) || unlikely(p4d_bad(p4dval)))
 		goto out_walk;
 
 	vmf.pud = pud_offset(p4d, address);
+	if (p4d_val(READ_ONCE(*p4d)) != p4d_val(p4dval))
+		goto out_walk;
 	pudval = READ_ONCE(*vmf.pud);
 	if (pud_none(pudval) || unlikely(pud_bad(pudval)))
 		goto out_walk;
@@ -4531,6 +4526,8 @@ int __handle_speculative_fault(struct mm_struct *mm, unsigned long address,
 		goto out_walk;
 
 	vmf.pmd = pmd_offset(vmf.pud, address);
+	if (pud_val(READ_ONCE(*vmf.pud)) != pud_val(pudval))
+		goto out_walk;
 	vmf.orig_pmd = READ_ONCE(*vmf.pmd);
 	/*
 	 * pmd_none could mean that a hugepage collapse is in progress
@@ -4558,6 +4555,11 @@ int __handle_speculative_fault(struct mm_struct *mm, unsigned long address,
 	 */
 
 	vmf.pte = pte_offset_map(vmf.pmd, address);
+	if (pmd_val(READ_ONCE(*vmf.pmd)) != pmd_val(vmf.orig_pmd)) {
+		pte_unmap(vmf.pte);
+		vmf.pte = NULL;
+		goto out_walk;
+	}
 	vmf.orig_pte = READ_ONCE(*vmf.pte);
 	barrier(); /* See comment in handle_pte_fault() */
 	if (pte_none(vmf.orig_pte)) {
@@ -4589,7 +4591,10 @@ int __handle_speculative_fault(struct mm_struct *mm, unsigned long address,
 	 * If there is no need to retry, don't return the vma to the caller.
 	 */
 	if (ret != VM_FAULT_RETRY) {
-		count_vm_event(SPECULATIVE_PGFAULT);
+		if (vma_is_anonymous(vmf.vma))
+			count_vm_event(SPECULATIVE_PGFAULT_ANON);
+		else
+			count_vm_event(SPECULATIVE_PGFAULT_FILE);
 		put_vma(vmf.vma);
 		*vma = NULL;
 	}

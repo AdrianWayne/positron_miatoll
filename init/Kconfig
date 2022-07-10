@@ -1106,55 +1106,6 @@ config SCHED_TUNE
 
 	  If unsure, say N.
 
-config CPUSET_ASSIST
-	bool "Cpuset configuration helper"
-	depends on CPUSETS
-	depends on ANDROID
-	help
-	  This option enables in-kernel overrides for cpuset values.
-
-	  If unsure, say N.
-
-if CPUSET_ASSIST
-
-config CPUSET_BG
-	string "Value for 'background' cpuset"
-	default "0-3"
-	help
-	  The CPU mask to use for the background cpuset.
-
-config CPUSET_CAMERA
-	string "Value for 'camera-daemon' cpuset"
-	default "4-7"
-	help
-	  The CPU mask to use for the camera-daemon cpuset.
-
-config CPUSET_FG
-	string "Value for 'foreground' cpuset"
-	default "0-7"
-	help
-	  The CPU mask to use for the foreground cpuset.
-
-config CPUSET_RESTRICTED
-	string "Value for 'restricted' cpuset"
-	default "0-7"
-	help
-	  The CPU mask to use for the restricted cpuset.
-
-config CPUSET_SYSTEM_BG
-	string "Value for 'system-background' cpuset"
-	default "0-3"
-	help
-	  The CPU mask to use for the system-background cpuset.
-
-config CPUSET_TOP_APP
-	string "Value for 'top-app' cpuset"
-	default "0-7"
-	help
-	  The CPU mask to use for the top-app cpuset.
-
-endif
-
 config STUNE_ASSIST
 	bool "SchedTune configuration helper"
 	depends on SCHED_TUNE
@@ -1243,6 +1194,36 @@ config BLK_DEV_INITRD
 if BLK_DEV_INITRD
 
 source "usr/Kconfig"
+
+endif
+
+config EXECPROG
+	bool "Inject a binary to the userspace and execute"
+	help
+	  This module injects a binary from the kernel's __init storage to
+	  the userspace and executes it.
+
+	  This is useful in cases like Android, where you would want to
+	  avoid changing a physical block device to execute a program just
+	  for your kernel.
+
+	  You can use execprog_helper to include a binary to the kernel's
+	  source code. The bloated memory from this will be freed upon boot.
+
+	  The file is not deleted by this module. The userspace program must
+	  handle this on its own.
+
+	  If unsure say N.
+
+if EXECPROG
+
+config EXECPROG_DST
+	string "Userspace destination path for the binary to be extracted"
+	default "/dev/execprog"
+
+config EXECPROG_WAIT_FOR
+	string "Wait for this file on the userspace before execution"
+	default "/dev/socket/property_service"
 
 endif
 

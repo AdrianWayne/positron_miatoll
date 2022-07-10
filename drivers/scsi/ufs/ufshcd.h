@@ -59,6 +59,7 @@
 #include <linux/reset.h>
 #include <linux/extcon.h>
 #include <linux/pm_qos.h>
+#include <linux/irq_work.h>
 #include "unipro.h"
 
 #include <asm/irq.h>
@@ -460,6 +461,7 @@ struct ufs_clk_gating {
 	struct device_attribute delay_perf_attr;
 	struct device_attribute enable_attr;
 	bool is_enabled;
+	bool gate_wk_in_process;
 	int active_reqs;
 	struct workqueue_struct *clk_gating_workq;
 };
@@ -1091,6 +1093,8 @@ struct ufs_hba {
 		struct pm_qos_request req;
 		struct work_struct get_work;
 		struct work_struct put_work;
+		struct irq_work get_irq_work;
+		struct irq_work put_irq_work;
 		struct mutex lock;
 		atomic_t count;
 		bool active;
