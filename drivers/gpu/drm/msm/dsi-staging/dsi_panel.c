@@ -44,7 +44,7 @@
 #define DEFAULT_PANEL_PREFILL_LINES	25
 #define TICKS_IN_MICRO_SECOND		1000000
 
-static bool lcd_esd_irq_handler = false;
+static bool lcd_esd_irq_handler;
 extern void lcd_esd_enable(bool en);
 
 enum dsi_dsc_ratio_type {
@@ -489,12 +489,8 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 		gpio_set_value(panel->reset_config.disp_en_gpio, 0);
 
 	if (gpio_is_valid(panel->reset_config.reset_gpio)) {
-		if (lcd_reset_keep_high) {
-			pr_warn("%s: lcd-reset-gpio keep high\n", __func__);
-		} else {
-			pr_err("%s: lcd-reset_gpio disable\n", __func__);
+		if (!lcd_reset_keep_high)
 			gpio_set_value(panel->reset_config.reset_gpio, 0);
-		}
 	}
 
 	if (gpio_is_valid(panel->reset_config.lcd_mode_sel_gpio))
@@ -511,7 +507,7 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 		pr_err("[%s] failed to enable vregs, rc=%d\n", panel->name, rc);
 
 	if (panel->special_panel == DSI_SPECIAL_PANEL_TIANMA)
-		mdelay(5);
+		usleep_range(5000, 5100);
 
 	return rc;
 }

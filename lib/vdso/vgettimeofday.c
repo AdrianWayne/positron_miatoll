@@ -24,8 +24,8 @@
 
 #include <asm/barrier.h>
 #include <linux/compiler.h>	/* for notrace				*/
-#include <linux/math64.h>	/* for __iter_div_u64_rem()		*/
-#include <uapi/linux/time.h>	/* for struct timespec			*/
+#include <linux/math64.h>		/* for __iter_div_u64_rem()	*/
+#include <uapi/linux/time.h>		/* for struct timespec		*/
 
 #include "compiler.h"
 #include "datapage.h"

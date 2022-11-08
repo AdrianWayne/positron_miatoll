@@ -696,13 +696,6 @@ static int limits_dcvs_probe(struct platform_device *pdev)
 	}
 	request_reg = be32_to_cpu(addr[0]) + LIMITS_CLUSTER_REQ_OFFSET;
 
-	if (!IS_ENABLED(CONFIG_QTI_THERMAL_LIMITS_DCVS)) {
-		limits_isens_vref_ldo_init(pdev, hw);
-		devm_kfree(&pdev->dev, hw->cdev_data);
-		devm_kfree(&pdev->dev, hw);
-		return 0;
-	}
-
 	/*
 	 * Setup virtual thermal zones for each LMH-DCVS hardware
 	 * The sensor does not do actual thermal temperature readings
@@ -737,7 +730,7 @@ static int limits_dcvs_probe(struct platform_device *pdev)
 
 	mutex_init(&hw->access_lock);
 	INIT_WORK(&hw->cdev_register_work, register_cooling_device);
-	INIT_DEFERRABLE_WORK(&hw->freq_poll_work, limits_dcvs_poll);
+	INIT_DELAYED_WORK(&hw->freq_poll_work, limits_dcvs_poll);
 	hw->osm_hw_reg = devm_ioremap(&pdev->dev, request_reg, 0x4);
 	if (!hw->osm_hw_reg) {
 		pr_err("register remap failed\n");

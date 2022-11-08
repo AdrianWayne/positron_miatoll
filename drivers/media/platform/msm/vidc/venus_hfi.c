@@ -84,7 +84,7 @@ const struct msm_vidc_gov_data DEFAULT_BUS_VOTE = {
 	.data_count = 0,
 };
 
-const int max_packets = 1000;
+const int max_packets = 480; /* 16 sessions x 30 packets */
 
 static void venus_hfi_pm_handler(struct work_struct *work);
 static DECLARE_DELAYED_WORK(venus_hfi_pm_work, venus_hfi_pm_handler);
@@ -2228,7 +2228,6 @@ err_core_init:
 	__set_state(dev, VENUS_STATE_DEINIT);
 	__unload_fw(dev);
 err_load_fw:
-err_no_mem:
 	dprintk(VIDC_ERR, "Core init failed\n");
 	mutex_unlock(&dev->lock);
 	return rc;
@@ -4738,7 +4737,6 @@ fail_enable_clks:
 	__disable_regulators(device);
 fail_enable_gdsc:
 	__unvote_buses(device);
-fail_vote_buses:
 	device->power_enabled = false;
 	return rc;
 }

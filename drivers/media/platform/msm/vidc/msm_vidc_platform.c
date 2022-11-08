@@ -225,10 +225,6 @@ static struct msm_vidc_common_data atoll_common_data[] = {
 		.value = 1000,
 	},
 	{
-		.key = "qcom,decode-batching",
-		.value = 1,
-	},
-	{
 		.key = "qcom,dcvs",
 		.value = 1,
 	},
@@ -286,10 +282,6 @@ static struct msm_vidc_common_data atoll_common_data_v1[] = {
 	{
 		.key = "qcom,hw-resp-timeout",
 		.value = 1000,
-	},
-	{
-		.key = "qcom,decode-batching",
-		.value = 1,
 	},
 	{
 		.key = "qcom,dcvs",
@@ -483,7 +475,7 @@ static struct msm_vidc_common_data sm8150_common_data[] = {
 	},
 	{
 		.key = "qcom,decode-batching",
-		.value = 1,
+		.value = 0,
 	},
 	{
 		.key = "qcom,dcvs",
@@ -554,7 +546,7 @@ static struct msm_vidc_common_data sdmmagpie_common_data_v0[] = {
 	},
 	{
 		.key = "qcom,decode-batching",
-		.value = 1,
+		.value = 0,
 	},
 	{
 		.key = "qcom,dcvs",
@@ -625,7 +617,7 @@ static struct msm_vidc_common_data sdmmagpie_common_data_v1[] = {
 	},
 	{
 		.key = "qcom,decode-batching",
-		.value = 1,
+		.value = 0,
 	},
 	{
 		.key = "qcom,dcvs",

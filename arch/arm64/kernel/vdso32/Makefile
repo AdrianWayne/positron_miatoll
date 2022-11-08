@@ -6,11 +6,10 @@
 
 ifeq ($(cc-name),clang)
   CC_ARM32 := $(CC) $(CLANG_TARGET_ARM32)
-  LD_ARM32 ?= $(LD)
 else
   CC_ARM32 := $(CROSS_COMPILE_ARM32)$(cc-name)
-  LD_ARM32 ?= $(CROSS_COMPILE_ARM32)ld
 endif
+LD_ARM32 ?= $(CROSS_COMPILE_ARM32)ld
 
 # Same as cc-*option, but using CC_ARM32 instead of CC
 cc32-option = $(call try-run,\
@@ -55,10 +54,11 @@ endif
 VDSO_CAFLAGS += -fPIC -fno-builtin -fno-stack-protector
 VDSO_CAFLAGS += -DDISABLE_BRANCH_PROFILING
 
-# Always compile for ARMv8 as compilers supported by AOSP support this.
-VDSO_CAFLAGS += -D__LINUX_ARM_ARCH__=8
-VDSO_CAFLAGS += -mcpu=cortex-a55
-VDSO_CAFLAGS += -Wa,-mcpu=cortex-a55
+# Try to compile for ARMv8. If the compiler is too old and doesn't support it,
+# fall back to v7. There is no easy way to check for what architecture the code
+# is being compiled, so define a macro specifying that (see arch/arm/Makefile).
+VDSO_CAFLAGS += $(call cc32-option,-march=armv8-a -D__LINUX_ARM_ARCH__=8,\
+                                   -march=armv7-a -D__LINUX_ARM_ARCH__=7)
 
 VDSO_CFLAGS := $(VDSO_CAFLAGS)
 # KBUILD_CFLAGS from top-level Makefile
@@ -85,6 +85,14 @@ VDSO_CFLAGS += -D__uint128_t='void*'
 # (on GCC 4.8 or older, there is unfortunately no way to silence this warning)
 VDSO_CFLAGS += $(call cc32-disable-warning,shift-count-overflow)
 VDSO_CFLAGS += -Wno-int-to-pointer-cast
+
+# Compile as THUMB2 or ARM. Unwinding via frame-pointers in THUMB2 is
+# unreliable.
+ifeq ($(CONFIG_THUMB2_COMPAT_VDSO), y)
+VDSO_CFLAGS += -mthumb -fomit-frame-pointer
+else
+VDSO_CFLAGS += -marm
+endif
 
 VDSO_AFLAGS := $(VDSO_CAFLAGS)
 VDSO_AFLAGS += -D__ASSEMBLY__

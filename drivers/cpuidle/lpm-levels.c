@@ -460,9 +460,7 @@ static bool psci_enter_sleep(struct lpm_cpu *cpu, int idx, bool from_idle)
 	 */
 
 	if (!idx) {
-		stop_critical_timings();
 		cpu_do_idle();
-		start_critical_timings();
 		return 1;
 	}
 
@@ -476,11 +474,7 @@ static bool psci_enter_sleep(struct lpm_cpu *cpu, int idx, bool from_idle)
 	affinity_level = PSCI_AFFINITY_LEVEL(affinity_level);
 	state_id += power_state + affinity_level + cpu->levels[idx].psci_id;
 
-	stop_critical_timings();
-
 	success = !arm_cpuidle_suspend(state_id);
-
-	start_critical_timings();
 
 	if (from_idle && cpu->levels[idx].use_bc_timer)
 		tick_broadcast_exit();
@@ -497,9 +491,8 @@ static int lpm_cpuidle_select(struct cpuidle_driver *drv,
 static int lpm_cpuidle_enter(struct cpuidle_device *dev,
 		struct cpuidle_driver *drv, int idx)
 {
-	cpuidle_set_idle_cpu(dev->cpu);
-	wfi();
-	cpuidle_clear_idle_cpu(dev->cpu);
+	if (!need_resched())
+		wfi();
 
 	return idx;
 }

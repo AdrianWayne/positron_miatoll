@@ -32,7 +32,6 @@
 #include <linux/sched/rt.h>
 #include <linux/slab.h>
 #include "cpupri.h"
-#include "sched.h"
 
 /* Convert between a 140 based task->prio, and our 102 based cpupri */
 static int convert_prio(int prio)

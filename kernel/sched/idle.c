@@ -137,6 +137,7 @@ static void cpuidle_idle_call(void)
 	struct cpuidle_driver *drv = cpuidle_get_cpu_driver(dev);
 	int next_state, entered_state;
 
+#if 0
 	/*
 	 * Check if the idle task must be rescheduled. If it is the
 	 * case, exit the function after re-enabling the local irq.
@@ -145,6 +146,7 @@ static void cpuidle_idle_call(void)
 		local_irq_enable();
 		return;
 	}
+#endif
 
 	/*
 	 * The RCU framework needs to be told that we are entering an idle
@@ -171,6 +173,11 @@ static void cpuidle_idle_call(void)
 	 */
 
 	if (unlikely(idle_should_enter_s2idle() || dev->use_deepest_state)) {
+		if (need_resched()) {
+			local_irq_enable();
+			return;
+		}
+
 		if (idle_should_enter_s2idle()) {
 			rcu_idle_enter();
 
@@ -241,27 +248,30 @@ static void do_idle(void)
 		check_pgt_cache();
 		rmb();
 
-		if (unlikely(cpu_is_offline(cpu))) {
+#ifdef CONFIG_HOTPLUG_CPU
+		if (cpu_is_offline(cpu)) {
 			tick_nohz_idle_stop_tick_protected();
 			cpuhp_report_idle_dead();
 			arch_cpu_idle_dead();
 		}
-
+#endif
 		local_irq_disable();
 		arch_cpu_idle_enter();
 
+#if 0
 		/*
 		 * In poll mode we reenable interrupts and spin. Also if we
 		 * detected in the wakeup from idle path that the tick
 		 * broadcast device expired for us, we don't want to go deep
 		 * idle as we know that the IPI is going to arrive right away.
 		 */
-		if (unlikely(cpu_idle_force_poll || tick_check_broadcast_expired())) {
+		if (cpu_idle_force_poll || tick_check_broadcast_expired()) {
 			tick_nohz_idle_restart_tick();
 			cpu_idle_poll();
-		} else {
+		} else
+#endif
 			cpuidle_idle_call();
-		}
+
 		arch_cpu_idle_exit();
 	}
 

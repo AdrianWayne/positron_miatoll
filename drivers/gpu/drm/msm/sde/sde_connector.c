@@ -1842,8 +1842,7 @@ static int sde_connector_atomic_check(struct drm_connector *connector,
 	return 0;
 }
 
-static int esd_irq_count = 0;
-static bool tp_update_firmware = false;
+static bool tp_update_firmware;
 extern void lcd_esd_handler(bool en);
 
 void lcd_esd_enable(bool en)
@@ -1854,6 +1853,8 @@ EXPORT_SYMBOL(lcd_esd_enable);
 
 static void esd_recovery(int irq, void *data)
 {
+	static int esd_irq_count;
+
 	struct sde_connector *conn = data;
 	struct dsi_display *display;
 	struct dsi_panel *panel;
@@ -1861,7 +1862,7 @@ static void esd_recovery(int irq, void *data)
 
 	if (!conn && !conn->display) {
 		SDE_ERROR("not able to get connector object\n");
-		return ;
+		return;
 	}
 
 	display = (struct dsi_display *)(conn->display);
@@ -1882,7 +1883,7 @@ static void esd_recovery(int irq, void *data)
 
 	if (panel->special_panel == DSI_SPECIAL_PANEL_HUAXING) {
 		disable_irq_nosync(irq);
-		lcd_esd_handler(1);
+		lcd_esd_handler(true);
 	} else if (panel->special_panel == DSI_SPECIAL_PANEL_TIANMA) {
 		lcd_esd_enable(false);
 	}
@@ -2346,7 +2347,6 @@ struct drm_connector *sde_connector_init(struct drm_device *dev,
 				CONNECTOR_PROP_HDR_INFO);
 		}
 
-		esd_irq_count = 0;
 		if (dsi_display && dsi_display->panel &&
 			dsi_display->panel->esd_config.esd_err_irq_gpio > 0) {
 			rc = request_threaded_irq(dsi_display->panel->esd_config.esd_err_irq,

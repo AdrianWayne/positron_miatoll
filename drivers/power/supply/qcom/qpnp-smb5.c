@@ -574,7 +574,7 @@ static int smb5_parse_dt(struct smb5 *chip)
 		rc = of_property_read_u32(node, "qcom,chg-term-base-current-ma",
 				&chip->dt.term_current_thresh_lo_ma);
 
-	if (board_get_33w_supported()) {
+	if (board_33w_supported) {
 	if (of_find_property(node, "qcom,thermal-mitigation-dcp", &byte_len)) {
 		chg->thermal_mitigation_dcp = devm_kzalloc(chg->dev, byte_len,
 			GFP_KERNEL);
@@ -1318,7 +1318,7 @@ static int smb5_usb_set_prop(struct power_supply *psy,
 		if (chg->support_ffc) {
 			rc = smblib_set_fastcharge_mode(chg, val->intval);
 			power_supply_changed(chg->bms_psy);
-			if (board_get_33w_supported()) {
+			if (board_33w_supported) {
 			schedule_delayed_work(&chg->charger_soc_decimal,
 					msecs_to_jiffies(CHARGER_SOC_DECIMAL_MS));
 			}
@@ -4030,7 +4030,7 @@ static void thermal_fb_notifier_resume_work(struct work_struct *work)
 	struct smb_charger *chg = container_of(work, struct smb_charger, fb_notify_work);
 	LctThermal = 1;
 
-    if (board_get_33w_supported()) {
+    if (board_33w_supported) {
         LCT_THERM_CALL_LEVEL = 14;
         LCT_THERM_LCDOFF_LEVEL = 13;
     } else {

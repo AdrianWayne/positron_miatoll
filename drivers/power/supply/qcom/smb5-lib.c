@@ -893,7 +893,7 @@ int smblib_set_fastcharge_mode(struct smb_charger *chg, bool enable)
 	if (!chg->bms_psy)
 		return 0;
 
-	if (board_get_33w_supported()) {
+	if (board_33w_supported) {
 	rc = power_supply_get_property(chg->bms_psy,
 				POWER_SUPPLY_PROP_AUTHENTIC, &pval);
 	if (rc < 0) {
@@ -3028,7 +3028,7 @@ int smblib_set_prop_system_temp_level(struct smb_charger *chg,
 	int rc;
 	union power_supply_propval batt_temp ={0,};
 
-    if (board_get_33w_supported()) {
+    if (board_33w_supported) {
         LCT_THERM_CALL_LEVEL = 14;
         LCT_THERM_LCDOFF_LEVEL = 13;
     } else {
@@ -3095,7 +3095,7 @@ int smblib_set_prop_system_temp_level(struct smb_charger *chg,
 	if (chg->cp_disable_votable)
 		vote(chg->cp_disable_votable, THERMAL_DAEMON_VOTER, false, 0);
 
-	if (board_get_33w_supported()) {
+	if (board_33w_supported) {
 	smblib_therm_charging(chg);
 	} else {
 	if (chg->system_temp_level == 0)
@@ -5371,7 +5371,7 @@ int smblib_set_prop_pd_active(struct smb_charger *chg,
 					msecs_to_jiffies(STEP_CHG_DELAYED_START_MS));
 		}
 
-		if (board_get_33w_supported()) {
+		if (board_33w_supported) {
 		smblib_therm_charging(chg);
 		}
 	} else {
@@ -6698,7 +6698,7 @@ static void smblib_raise_qc3_vbus_work(struct work_struct *work)
 			dev_err(chg->dev,
 					"HVDCP3: Couldn't enable secondary chargers  rc=%d\n", rc);
 
-		if (board_get_33w_supported()) {
+		if (board_33w_supported) {
 		if (chg->cp_reason == POWER_SUPPLY_CP_HVDCP3)
 			smblib_therm_charging(chg);
 		}
@@ -7038,7 +7038,7 @@ static void smblib_handle_apsd_done(struct smb_charger *chg, bool rising)
 		break;
 	}
 
-	if (board_get_33w_supported()) {
+	if (board_33w_supported) {
 	determine_thermal_current(chg);
 	}
 
@@ -9502,7 +9502,7 @@ int smblib_init(struct smb_charger *chg)
 					smblib_pr_lock_clear_work);
 	setup_timer(&chg->apsd_timer, apsd_timer_cb, (unsigned long)chg);
 
-	if (board_get_33w_supported()) {
+	if (board_33w_supported) {
 	INIT_DELAYED_WORK(&chg->charger_soc_decimal, smblib_charger_soc_decimal);
 	}
 	if (chg->wa_flags & CHG_TERMINATION_WA) {
@@ -9578,7 +9578,7 @@ int smblib_init(struct smb_charger *chg)
 
 		chg->bms_psy = power_supply_get_by_name("bms");
 
-		if (board_get_33w_supported()) {
+		if (board_33w_supported) {
 		chg->batt_verify_psy = power_supply_get_by_name("batt_verify");
 		}
 
@@ -9662,7 +9662,7 @@ int smblib_deinit(struct smb_charger *chg)
 		cancel_delayed_work_sync(&chg->raise_qc3_vbus_work);
 		cancel_delayed_work_sync(&chg->charger_type_recheck);
 		cancel_delayed_work_sync(&chg->cc_un_compliant_charge_work);
-		if (board_get_33w_supported()) {
+		if (board_33w_supported) {
 		cancel_delayed_work_sync(&chg->charger_soc_decimal);
 		}
 		if (chg->reg_dump_enable) {

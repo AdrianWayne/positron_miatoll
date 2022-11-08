@@ -206,13 +206,10 @@
 		compatible = "ti,tas2562";
 		reg = <0x4c>;
 		ti,left-channel = <0x4c>; /* addr */
-		//ti,right-channel = <0x4d>;
 		ti,channels = <1>; /* channel number */
 		ti,asi-format = <0>; /* 0, i2S; 1, DSP;  */
 		ti,reset-gpio = <&tlmm 51 0>;
-		//ti,reset-gpio2 = <&gpio1 16 0>;
 		ti,irq-gpio = <&tlmm 33 0>;
-		//ti,irq-gpio2 = <&gpio1 14 0>;
 		ti,left-slot = <0>; /* <left slot number> */
 		ti,right-slot = <1>; /* <right slot number> */
 		ti,imon-slot-no = <0>; /* <current sense slot number> */
@@ -228,13 +225,10 @@
 		compatible = "ti,tas2562";
 		reg = <0x4c>;
 		ti,left-channel = <0x4c>; /* addr */
-		//ti,right-channel = <0x4d>;
 		ti,channels = <1>; /* channel number */
 		ti,asi-format = <0>; /* 0, i2S; 1, DSP;  */
 		ti,reset-gpio = <&tlmm 51 0>;
-		//ti,reset-gpio2 = <&gpio1 16 0>;
 		ti,irq-gpio = <&tlmm 33 0>;
-		//ti,irq-gpio2 = <&gpio1 14 0>;
 		ti,left-slot = <0>; /* <left slot number> */
 		ti,right-slot = <1>; /* <right slot number> */
 		ti,imon-slot-no = <0>; /* <current sense slot number> */

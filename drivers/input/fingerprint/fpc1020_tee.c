@@ -40,7 +40,7 @@
 #include <linux/proc_fs.h>
 #include <linux/fb.h>
 
-#define FPC_TTW_HOLD_TIME 1000
+#define FPC_TTW_HOLD_TIME 2000
 #define FP_UNLOCK_REJECTION_TIMEOUT (FPC_TTW_HOLD_TIME - 500)
 #define RESET_LOW_SLEEP_MIN_US 5000
 #define RESET_LOW_SLEEP_MAX_US (RESET_LOW_SLEEP_MIN_US + 100)

@@ -37,24 +37,6 @@ static int enabled_devices;
 static int off __read_mostly;
 static int initialized __read_mostly;
 
-#ifdef CONFIG_SMP
-static atomic_t idled = ATOMIC_INIT(0);
-
-#if NR_CPUS > 32
-#error idled CPU mask not big enough for NR_CPUS
-#endif
-
-void cpuidle_set_idle_cpu(unsigned int cpu)
-{
-	atomic_or(BIT(cpu), &idled);
-}
-
-void cpuidle_clear_idle_cpu(unsigned int cpu)
-{
-	atomic_andnot(BIT(cpu), &idled);
-}
-#endif
-
 int cpuidle_disabled(void)
 {
 	return off;
@@ -163,7 +145,8 @@ static void enter_s2idle_proper(struct cpuidle_driver *drv,
 	 */
 	stop_critical_timings();
 	drv->states[index].enter_s2idle(dev, drv, index);
-	WARN_ON(!irqs_disabled());
+	if (WARN_ON_ONCE(!irqs_disabled()))
+		local_irq_disable();
 	/*
 	 * timekeeping_resume() that will be called by tick_unfreeze() for the
 	 * first CPU executing it calls functions containing RCU read-side
@@ -202,24 +185,25 @@ int cpuidle_enter_s2idle(struct cpuidle_driver *drv, struct cpuidle_device *dev)
  * cpuidle_enter_state - enter the state and update stats
  * @dev: cpuidle device for this cpu
  * @drv: cpuidle driver for this cpu
- * @index: index into the states table in @drv of the state to enter
  */
-int cpuidle_enter_state(struct cpuidle_device *dev, struct cpuidle_driver *drv,
-			int index)
+int cpuidle_enter_state(struct cpuidle_device *dev, struct cpuidle_driver *drv)
 {
+#if 0
 	int entered_state;
 
 	struct cpuidle_state *target_state = &drv->states[index];
 	bool broadcast = !!(target_state->flags & CPUIDLE_FLAG_TIMER_STOP);
+#endif
 	ktime_t time_start, time_end;
 	s64 diff;
 
+#if 0
 	/*
 	 * Tell the time framework to switch to a broadcast timer because our
 	 * local timer will be shut down.  If a local timer is used from another
 	 * CPU as a broadcast timer, this call may fail if it is not available.
 	 */
-	if (unlikely(broadcast && tick_broadcast_enter())) {
+	if (broadcast && tick_broadcast_enter()) {
 		index = find_deepest_state(drv, dev, target_state->exit_latency,
 					   CPUIDLE_FLAG_TIMER_STOP, false);
 		if (index < 0) {
@@ -229,15 +213,16 @@ int cpuidle_enter_state(struct cpuidle_device *dev, struct cpuidle_driver *drv,
 		target_state = &drv->states[index];
 		broadcast = false;
 	}
+#endif
 
 	/* Take note of the planned idle state. */
-	sched_idle_set_state(target_state, index);
+	sched_idle_set_state(&drv->states[0], 0);
 
-	trace_cpu_idle_rcuidle(index, dev->cpu);
+	trace_cpu_idle_rcuidle(0, dev->cpu);
 	time_start = ns_to_ktime(local_clock());
 
 	stop_critical_timings();
-	entered_state = target_state->enter(dev, drv, index);
+	drv->states[0].enter(dev, drv, 0);
 	start_critical_timings();
 
 	sched_clock_idle_wakeup_event();
@@ -247,14 +232,16 @@ int cpuidle_enter_state(struct cpuidle_device *dev, struct cpuidle_driver *drv,
 	/* The cpu is no longer idle or about to enter idle. */
 	sched_idle_set_state(NULL, -1);
 
-	if (unlikely(broadcast)) {
+#if 0
+	if (broadcast) {
 		if (WARN_ON_ONCE(!irqs_disabled()))
 			local_irq_disable();
 
 		tick_broadcast_exit();
 	}
 
-	if (likely(!cpuidle_state_is_coupled(drv, index)))
+	if (!cpuidle_state_is_coupled(drv, index))
+#endif
 		local_irq_enable();
 
 	diff = ktime_us_delta(time_end, time_start);
@@ -262,19 +249,13 @@ int cpuidle_enter_state(struct cpuidle_device *dev, struct cpuidle_driver *drv,
 		diff = INT_MAX;
 
 	dev->last_residency = (int) diff;
-
-	if (likely(entered_state >= 0)) {
-		/* Update cpuidle counters */
-		/* This can be moved to within driver enter routine
-		 * but that results in multiple copies of same code.
-		 */
-		dev->states_usage[entered_state].time += dev->last_residency;
-		dev->states_usage[entered_state].usage++;
-	} else {
-		dev->last_residency = 0;
-	}
-
-	return entered_state;
+	/* Update cpuidle counters */
+	/* This can be moved to within driver enter routine
+	 * but that results in multiple copies of same code.
+	 */
+	dev->states_usage[0].time += dev->last_residency;
+	dev->states_usage[0].usage++;
+	return 0;
 }
 
 /**
@@ -304,9 +285,7 @@ int cpuidle_select(struct cpuidle_driver *drv, struct cpuidle_device *dev)
 int cpuidle_enter(struct cpuidle_driver *drv, struct cpuidle_device *dev,
 		  int index)
 {
-	if (unlikely(cpuidle_state_is_coupled(drv, index)))
-		return cpuidle_enter_state_coupled(dev, drv, index);
-	return cpuidle_enter_state(dev, drv, index);
+	return cpuidle_enter_state(dev, drv);
 }
 
 /**

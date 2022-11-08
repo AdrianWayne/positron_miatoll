@@ -2182,7 +2182,7 @@ static int qg_psy_get_property(struct power_supply *psy,
 	int rc = 0;
 	int64_t temp = 0;
 	union power_supply_propval b_val = {0,};
-	if (board_get_33w_supported()) {
+	if (board_33w_supported) {
 	if (chip->max_verify_psy == NULL)
 		chip->max_verify_psy = power_supply_get_by_name("batt_verify");
 	if ((psp == POWER_SUPPLY_PROP_AUTHENTIC)
@@ -2200,7 +2200,7 @@ static int qg_psy_get_property(struct power_supply *psy,
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_AUTHENTIC:
-		if (board_get_33w_supported()) {
+		if (board_33w_supported) {
 		rc = power_supply_get_property(chip->max_verify_psy,
 					POWER_SUPPLY_PROP_AUTHEN_RESULT, &b_val);
 		pval->intval = b_val.intval;
@@ -2208,7 +2208,7 @@ static int qg_psy_get_property(struct power_supply *psy,
 		}
 		break;
 	case POWER_SUPPLY_PROP_ROMID:
-		if (board_get_33w_supported()) {
+		if (board_33w_supported) {
 		rc = power_supply_get_property(chip->max_verify_psy,
 					POWER_SUPPLY_PROP_ROMID, &b_val);
 		memcpy(pval->arrayval, b_val.arrayval, 8);
@@ -2216,7 +2216,7 @@ static int qg_psy_get_property(struct power_supply *psy,
 		}
 		break;
 	case POWER_SUPPLY_PROP_DS_STATUS:
-		if (board_get_33w_supported()) {
+		if (board_33w_supported) {
 		rc = power_supply_get_property(chip->max_verify_psy,
 					POWER_SUPPLY_PROP_DS_STATUS, &b_val);
 		memcpy(pval->arrayval, b_val.arrayval, 8);
@@ -2224,7 +2224,7 @@ static int qg_psy_get_property(struct power_supply *psy,
 		}
 		break;
 	case POWER_SUPPLY_PROP_PAGE0_DATA:
-		if (board_get_33w_supported()) {
+		if (board_33w_supported) {
 		rc = power_supply_get_property(chip->max_verify_psy,
 					POWER_SUPPLY_PROP_PAGE0_DATA, &b_val);
 		memcpy(pval->arrayval, b_val.arrayval, 16);
@@ -2232,7 +2232,7 @@ static int qg_psy_get_property(struct power_supply *psy,
 		}
 		break;
 	case POWER_SUPPLY_PROP_CHIP_OK:
-		if (board_get_33w_supported()) {
+		if (board_33w_supported) {
 		rc = power_supply_get_property(chip->max_verify_psy,
 					POWER_SUPPLY_PROP_CHIP_OK, &b_val);
 		pval->intval = b_val.intval;
@@ -2274,7 +2274,7 @@ static int qg_psy_get_property(struct power_supply *psy,
 		break;
 	case POWER_SUPPLY_PROP_RESISTANCE_ID:
 		pval->intval = chip->batt_id_ohm;
-		if (board_get_33w_supported()) {
+		if (board_33w_supported) {
 		pval->intval = 100000;
 		}
 		break;
@@ -3342,7 +3342,7 @@ static int qg_load_battery_profile(struct qpnp_qg *chip)
 	struct device_node *profile_node;
 	int rc, tuple_len, len, i, avail_age_level = 0;
 	union power_supply_propval pval = {0, };
-	if (board_get_33w_supported()) {
+	if (board_33w_supported) {
 	profile_node = ERR_PTR(-ENXIO);
 	if (chip->max_verify_psy == NULL)
 		chip->max_verify_psy = power_supply_get_by_name("batt_verify");
@@ -3374,7 +3374,7 @@ static int qg_load_battery_profile(struct qpnp_qg *chip)
 			chip->batt_age_level = avail_age_level;
 		}
 	} else {
-		if (board_get_33w_supported()) {
+		if (board_33w_supported) {
 		if (chip->max_verify_psy != NULL) {
 			rc = power_supply_get_property(chip->max_verify_psy,
 						POWER_SUPPLY_PROP_CHIP_OK, &pval);
@@ -3431,7 +3431,7 @@ static int qg_load_battery_profile(struct qpnp_qg *chip)
 		return rc;
 	}
 
-	if (board_get_33w_supported()) {
+	if (board_33w_supported) {
 	if (chip->profile_loaded == false) {
 		rc = qg_batterydata_init(profile_node);
 		if (rc < 0) {
@@ -5266,7 +5266,7 @@ static int qpnp_qg_probe(struct platform_device *pdev)
 	if (!chip)
 		return -ENOMEM;
 
-	if (board_get_33w_supported()) {
+	if (board_33w_supported) {
 	chip->battery_authentic_result = -EINVAL;
 	memset(chip->ds_romid, 0, 8);
 	memset(chip->ds_status, 0, 8);
@@ -5312,7 +5312,7 @@ static int qpnp_qg_probe(struct platform_device *pdev)
 	INIT_DELAYED_WORK(&chip->qg_sleep_exit_work, qg_sleep_exit_work);
 	INIT_DELAYED_WORK(&chip->soc_monitor_work, soc_monitor_work);
 	INIT_DELAYED_WORK(&chip->force_shutdown_work, force_shutdown_work);
-	if (board_get_33w_supported()) {
+	if (board_33w_supported) {
 	INIT_DELAYED_WORK(&chip->profile_load_work, profile_load_work);
 	//INIT_DELAYED_WORK(&chip->battery_authentic_work, battery_authentic_work);
 	INIT_DELAYED_WORK(&chip->ds_romid_work, ds_romid_work);
@@ -5334,7 +5334,7 @@ static int qpnp_qg_probe(struct platform_device *pdev)
 	chip->esr_nominal = -EINVAL;
 	chip->batt_age_level = -EINVAL;
 
-	if (board_get_33w_supported()) {
+	if (board_33w_supported) {
 	chip->max_verify_psy = power_supply_get_by_name("batt_verify");
 	}
 
@@ -5368,7 +5368,7 @@ static int qpnp_qg_probe(struct platform_device *pdev)
 		return rc;
 	}
 
-	if (board_get_33w_supported()) {
+	if (board_33w_supported) {
 	if (chip->profile_judge_done == false) {
 		schedule_delayed_work(&chip->profile_load_work,
 					msecs_to_jiffies(0));
@@ -5464,7 +5464,7 @@ static int qpnp_qg_probe(struct platform_device *pdev)
 	}
 
 /*
-	if (board_get_33w_supported()) {
+	if (board_33w_supported) {
 	if (chip->battery_authentic_result != true) {
 		schedule_delayed_work(&chip->battery_authentic_work,
 				msecs_to_jiffies(2000));
